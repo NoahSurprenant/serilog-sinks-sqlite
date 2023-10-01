@@ -92,7 +92,8 @@ namespace Serilog.Sinks.Batch
 
         private void TimerPump()
         {
-            while (!_canStop) {
+            while (!_canStop)
+            {
                 _timerResetEvent.WaitOne(_timerThresholdSpan);
                 FlushLogEventBatch();
             }

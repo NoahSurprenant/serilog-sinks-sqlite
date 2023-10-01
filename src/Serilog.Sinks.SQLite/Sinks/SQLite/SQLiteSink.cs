@@ -15,11 +15,12 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SQLite;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Serilog.Core;
 using Serilog.Debugging;
 using Serilog.Events;
@@ -43,6 +44,7 @@ namespace Serilog.Sinks.SQLite
         private const long MaxSupportedPages = 5_242_880;
         private const long MaxSupportedPageSize = 4096;
         private const long MaxSupportedDatabaseSize = unchecked(MaxSupportedPageSize * MaxSupportedPages) / 1048576;
+        private const int SQLITE_FULL = SQLitePCL.raw.SQLITE_FULL;
         private static SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
         
         public SQLiteSink(
@@ -65,7 +67,7 @@ namespace Serilog.Sinks.SQLite
 
             if (maxDatabaseSize > MaxSupportedDatabaseSize)
             {
-                throw new SQLiteException($"Database size greater than {MaxSupportedDatabaseSize} MB is not supported");
+                throw new SqliteException($"Database size greater than {MaxSupportedDatabaseSize} MB is not supported", SQLITE_FULL);
             }
 
             InitializeDatabase();
@@ -110,25 +112,34 @@ namespace Serilog.Sinks.SQLite
             }
         }
 
-        private SQLiteConnection GetSqLiteConnection()
+        private SqliteConnection GetSqLiteConnection()
         {
-            var sqlConString = new SQLiteConnectionStringBuilder
+            var builder = new SqliteConnectionStringBuilder
             {
                 DataSource = _databasePath,
-                JournalMode = SQLiteJournalModeEnum.Memory,
-                SyncMode = SynchronizationModes.Normal,
-                CacheSize = 500,
-                PageSize = (int)MaxSupportedPageSize,
-                MaxPageCount = (int)(_maxDatabaseSize * BytesPerMb / MaxSupportedPageSize)
-            }.ConnectionString;
+            };
 
-            var sqLiteConnection = new SQLiteConnection(sqlConString);
+            var sqLiteConnection = new SqliteConnection(builder.ConnectionString);
             sqLiteConnection.Open();
+
+            // Microsoft.Data.Sqlite does not support setting the following pragmas with the connection string like System.Data.Sqlite does
+            // So they must be set after opening the connection
+            var sb = new StringBuilder();
+            sb.Append("PRAGMA journal_mode = Memory;");
+            sb.Append("PRAGMA synchronous = Normal;");
+            sb.Append("PRAGMA cache_size = 500;");
+            sb.Append("PRAGMA page_size = ");
+            sb.Append((int)MaxSupportedPageSize); sb.Append(";");
+            sb.Append("PRAGMA max_page_count = ");
+            sb.Append((int)(_maxDatabaseSize * BytesPerMb / MaxSupportedPageSize));
+
+            var pragmaCommand = new SqliteCommand(sb.ToString(), sqLiteConnection);
+            pragmaCommand.ExecuteNonQuery();
 
             return sqLiteConnection;
         }
 
-        private void CreateSqlTable(SQLiteConnection sqlConnection)
+        private void CreateSqlTable(SqliteConnection sqlConnection)
         {
             var colDefs = "id INTEGER PRIMARY KEY AUTOINCREMENT,";
             colDefs += "Timestamp TEXT,";
@@ -139,11 +150,11 @@ namespace Serilog.Sinks.SQLite
 
             var sqlCreateText = $"CREATE TABLE IF NOT EXISTS {_tableName} ({colDefs})";
 
-            var sqlCommand = new SQLiteCommand(sqlCreateText, sqlConnection);
+            var sqlCommand = new SqliteCommand(sqlCreateText, sqlConnection);
             sqlCommand.ExecuteNonQuery();
         }
 
-        private SQLiteCommand CreateSqlInsertCommand(SQLiteConnection connection)
+        private SqliteCommand CreateSqlInsertCommand(SqliteConnection connection)
         {
             var sqlInsertText = "INSERT INTO {0} (Timestamp, Level, Exception, RenderedMessage, Properties)";
             sqlInsertText += " VALUES (@timeStamp, @level, @exception, @renderedMessage, @properties)";
@@ -153,11 +164,11 @@ namespace Serilog.Sinks.SQLite
             sqlCommand.CommandText = sqlInsertText;
             sqlCommand.CommandType = CommandType.Text;
 
-            sqlCommand.Parameters.Add(new SQLiteParameter("@timeStamp", DbType.DateTime2));
-            sqlCommand.Parameters.Add(new SQLiteParameter("@level", DbType.String));
-            sqlCommand.Parameters.Add(new SQLiteParameter("@exception", DbType.String));
-            sqlCommand.Parameters.Add(new SQLiteParameter("@renderedMessage", DbType.String));
-            sqlCommand.Parameters.Add(new SQLiteParameter("@properties", DbType.String));
+            sqlCommand.Parameters.Add(new SqliteParameter("@timeStamp", DbType.DateTime2));
+            sqlCommand.Parameters.Add(new SqliteParameter("@level", DbType.String));
+            sqlCommand.Parameters.Add(new SqliteParameter("@exception", DbType.String));
+            sqlCommand.Parameters.Add(new SqliteParameter("@renderedMessage", DbType.String));
+            sqlCommand.Parameters.Add(new SqliteParameter("@properties", DbType.String));
 
             return sqlCommand;
         }
@@ -176,7 +187,7 @@ namespace Serilog.Sinks.SQLite
             }
         }
 
-        private void TruncateLog(SQLiteConnection sqlConnection)
+        private void TruncateLog(SqliteConnection sqlConnection)
         {
             var cmd = sqlConnection.CreateCommand();
             cmd.CommandText = $"DELETE FROM {_tableName}";
@@ -185,19 +196,19 @@ namespace Serilog.Sinks.SQLite
             VacuumDatabase(sqlConnection);
         }
 
-        private void VacuumDatabase(SQLiteConnection sqlConnection)
+        private void VacuumDatabase(SqliteConnection sqlConnection)
         {
             var cmd = sqlConnection.CreateCommand();
             cmd.CommandText = $"vacuum";
             cmd.ExecuteNonQuery();
         }
 
-        private SQLiteCommand CreateSqlDeleteCommand(SQLiteConnection sqlConnection, DateTimeOffset epoch)
+        private SqliteCommand CreateSqlDeleteCommand(SqliteConnection sqlConnection, DateTimeOffset epoch)
         {
             var cmd = sqlConnection.CreateCommand();
             cmd.CommandText = $"DELETE FROM {_tableName} WHERE Timestamp < @epoch";
             cmd.Parameters.Add(
-                new SQLiteParameter("@epoch", DbType.DateTime2)
+                new SqliteParameter("@epoch", DbType.DateTime2)
                 {
                     Value = (_storeTimestampInUtc ? epoch.ToUniversalTime() : epoch).ToString(
                         TimestampFormat)
@@ -220,11 +231,11 @@ namespace Serilog.Sinks.SQLite
                         await WriteToDatabaseAsync(logEventsBatch, sqlConnection).ConfigureAwait(false);
                         return true;
                     }
-                    catch (SQLiteException e)
+                    catch (SqliteException e)
                     {
                         SelfLog.WriteLine(e.Message);
 
-                        if (e.ResultCode != SQLiteErrorCode.Full)
+                        if (e.SqliteErrorCode != SQLITE_FULL)
                             return false;
 
                         if (_rollOver == false)
@@ -260,7 +271,7 @@ namespace Serilog.Sinks.SQLite
             }
         }
 
-        private async Task WriteToDatabaseAsync(ICollection<LogEvent> logEventsBatch, SQLiteConnection sqlConnection)
+        private async Task WriteToDatabaseAsync(ICollection<LogEvent> logEventsBatch, SqliteConnection sqlConnection)
         {
             using (var tr = sqlConnection.BeginTransaction())
             {
