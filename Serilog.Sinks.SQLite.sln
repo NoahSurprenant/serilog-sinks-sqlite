@@ -1,9 +1,10 @@
-
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26114.2
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33205.214
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Serilog.Sinks.SQLite", "src\Serilog.Sinks.SQLite\Serilog.Sinks.SQLite.csproj", "{AD33D2A2-B8CA-4C5B-A36D-AA2E5DD43332}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Serilog.Sinks.SQLite", "src\Serilog.Sinks.SQLite\Serilog.Sinks.SQLite.csproj", "{AD33D2A2-B8CA-4C5B-A36D-AA2E5DD43332}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AndroidSqliteSinkTestApp", "AndroidSqliteSinkTestApp\AndroidSqliteSinkTestApp.csproj", "{0B622573-9B69-42F4-A4C6-76DCC0D2F668}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,8 +16,17 @@ Global
 		{AD33D2A2-B8CA-4C5B-A36D-AA2E5DD43332}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AD33D2A2-B8CA-4C5B-A36D-AA2E5DD43332}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AD33D2A2-B8CA-4C5B-A36D-AA2E5DD43332}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B622573-9B69-42F4-A4C6-76DCC0D2F668}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B622573-9B69-42F4-A4C6-76DCC0D2F668}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B622573-9B69-42F4-A4C6-76DCC0D2F668}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{0B622573-9B69-42F4-A4C6-76DCC0D2F668}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B622573-9B69-42F4-A4C6-76DCC0D2F668}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B622573-9B69-42F4-A4C6-76DCC0D2F668}.Release|Any CPU.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D1CCD14A-0B54-4C62-8349-3D4695453170}
 	EndGlobalSection
 EndGlobal
