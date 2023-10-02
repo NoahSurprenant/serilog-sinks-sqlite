@@ -47,7 +47,6 @@ namespace AndroidSqliteSinkTestApp
             Task.Run(() =>
             {
                 Thread.Sleep(5000);
-                Log.Logger.Debug("I the logs from before to now be deleted");
                 var logs1 = ReadLogs();
                 var logs2 = ReadLogsSqlKata();
                 var logs3 = ReadTopXLogsSqlKata(500);
